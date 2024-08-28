@@ -46,7 +46,7 @@ export const postQuery = (queryName, query, variables = {}, options) => {
   const body = JSON.parse(res.body);
   if (!body.data) {
     console.log(body);
+    return null;
   }
-
-  return res;
+  return body.data;
 };

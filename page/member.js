@@ -18,16 +18,12 @@
   checks：checks 项的成功率
  */
 
-import { check } from 'k6';
-import http from 'k6/http';
 import { Rate } from 'k6/metrics';
 import { collections } from '../collections.js';
 import { CHECK_FAILURE_RATE } from '../constants.js';
-import { getHttpConfig, getRandom } from '../utils.js';
+import { getRandom, postQuery } from '../utils.js';
 
 const failureRate = new Rate(CHECK_FAILURE_RATE);
-
-const httpConfig = getHttpConfig();
 
 export const options = {
   stages: [
@@ -54,33 +50,19 @@ export const options = {
   },
 };
 
-function postQuery(queryName, query, variables = {}) {
-  const res = http.post(
-    httpConfig.host,
-    JSON.stringify({
-      query: query,
-      operationName: queryName,
-      variables: variables,
-    }),
-    {
-      headers: httpConfig.headers,
-    }
-  );
-  const checkRes = check(res, {
-    [`${queryName} status is 200`]: (r) => r.status === 200,
-  });
-  failureRate.add(!checkRes);
-  return res;
-}
-
 const membershipPlans = () => {
   const query = `
     query membershipPlans($options: MembershipPlanListOptions) {\n  membershipPlans(options: $options) {\n    items {\n      ...MembershipPlan\n    }\n    totalItems\n  }\n}\n\nfragment MembershipPlan on MembershipPlan {\n  id\n  createdAt\n  updatedAt\n  name\n  bannerImg\n  backgroundImage\n  protocolUsage\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  price\n  introduce\n  customerServiceNumber\n  state\n  rightsDiscount {\n    enable\n    discountRate\n    restrictedUse\n  }\n  rightsPoints {\n    enable\n    pointsMultiple\n  }\n  rightsCoupon {\n    enable\n    presentedCoupon {\n      couponId\n      presentedCount\n    }\n  }\n  membershipPlanCoupon {\n    coupon {\n      ...Coupon\n    }\n    quantity\n  }\n}\n\nfragment Coupon on Coupon {\n  __typename\n  id\n  createdAt\n  state\n  enable\n  updatedAt\n  name\n  remarks\n  type\n  preferentialContent {\n    preferentialType\n    minimum\n    discount\n    maximumOffer\n    includingDiscountProducts\n  }\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  totalQuantity\n  applicableProduct {\n    applicableType\n    productIds\n  }\n  claimRestriction\n  whetherRestrictUsers\n  memberPlanIds\n  introduce\n  promotion {\n    id\n  }\n  activityContent\n  activityTime\n}
   `;
 
-  postQuery('membershipPlans', query, {
-    options: { filter: { state: { eq: 'shelf' }, isShow: { eq: true } } },
-  });
+  postQuery(
+    'membershipPlans',
+    query,
+    {
+      options: { filter: { state: { eq: 'shelf' }, isShow: { eq: true } } },
+    },
+    { failureRate }
+  );
 };
 
 const getDistributor = () => {
@@ -88,7 +70,7 @@ const getDistributor = () => {
     query getDistributor {\n  getDistributor {\n    id\n    createdAt\n    updatedAt\n    name\n    phone\n    customer {\n      ...Customer\n    }\n    orderTotal\n    customerCount\n    effectiveCustomerNum\n  }\n}\n\nfragment Customer on Customer {\n  id\n  createdAt\n  updatedAt\n  title\n  firstName\n  lastName\n  phoneNumber\n  emailAddress\n  addresses {\n    ...Address\n  }\n  user {\n    id\n    createdAt\n    updatedAt\n    identifier\n    verified\n    lastLogin\n    customFields\n  }\n  customFields {\n    distributor {\n      id\n      name\n      phone\n    }\n    headPortrait\n    gender\n    dateBirth\n    wechatCode\n    isModified\n    points\n  }\n}\n\nfragment Address on Address {\n  id\n  createdAt\n  updatedAt\n  fullName\n  company\n  streetLine1\n  streetLine2\n  city\n  province\n  postalCode\n  country {\n    id\n    code\n    name\n  }\n  phoneNumber\n  defaultShippingAddress\n  defaultBillingAddress\n  customFields {\n    district\n  }\n}
   `;
 
-  postQuery('getDistributor', query, {});
+  postQuery('getDistributor', query, {}, { failureRate });
 };
 
 const getUserMember = () => {
@@ -96,7 +78,7 @@ const getUserMember = () => {
     query getUserMember {\n  getUserMember {\n    ...Member\n  }\n}\n\nfragment Member on Member {\n  id\n  createdAt\n  updatedAt\n  code\n  claimAt\n  activationAt\n  maturityAt\n  maturityType\n  membershipPlan {\n    ...MembershipPlan\n  }\n  state\n}\n\nfragment MembershipPlan on MembershipPlan {\n  id\n  createdAt\n  updatedAt\n  name\n  bannerImg\n  backgroundImage\n  protocolUsage\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  price\n  introduce\n  customerServiceNumber\n  state\n  rightsDiscount {\n    enable\n    discountRate\n    restrictedUse\n  }\n  rightsPoints {\n    enable\n    pointsMultiple\n  }\n  rightsCoupon {\n    enable\n    presentedCoupon {\n      couponId\n      presentedCount\n    }\n  }\n  membershipPlanCoupon {\n    coupon {\n      ...Coupon\n    }\n    quantity\n  }\n}\n\nfragment Coupon on Coupon {\n  __typename\n  id\n  createdAt\n  state\n  enable\n  updatedAt\n  name\n  remarks\n  type\n  preferentialContent {\n    preferentialType\n    minimum\n    discount\n    maximumOffer\n    includingDiscountProducts\n  }\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  totalQuantity\n  applicableProduct {\n    applicableType\n    productIds\n  }\n  claimRestriction\n  whetherRestrictUsers\n  memberPlanIds\n  introduce\n  promotion {\n    id\n  }\n  activityContent\n  activityTime\n}
   `;
 
-  postQuery('getUserMember', query, {});
+  postQuery('getUserMember', query, {}, { failureRate });
 };
 
 const seriesProducts = (collectionId) => {
@@ -108,23 +90,28 @@ const seriesProducts = (collectionId) => {
     collectionId = String(collections[getRandom(0, collections.length - 1)].id);
   }
 
-  postQuery('seriesProducts', query, {
-    collectionId,
-    options: {
-      filter: {
-        hidden: {
-          eq: false,
+  postQuery(
+    'seriesProducts',
+    query,
+    {
+      collectionId,
+      options: {
+        filter: {
+          hidden: {
+            eq: false,
+          },
+          freeGift: {
+            eq: false,
+          },
         },
-        freeGift: {
-          eq: false,
+        sort: {
+          id: 'ASC',
+          createdAt: 'DESC',
         },
-      },
-      sort: {
-        id: 'ASC',
-        createdAt: 'DESC',
       },
     },
-  });
+    { failureRate }
+  );
 };
 
 export default function () {

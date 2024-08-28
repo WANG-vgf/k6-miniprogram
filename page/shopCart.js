@@ -18,8 +18,6 @@
   checks：checks 项的成功率
  */
 
-import { check } from 'k6';
-import http from 'k6/http';
 import { Rate } from 'k6/metrics';
 import { collections } from '../collections.js';
 import { CHECK_FAILURE_RATE } from '../constants.js';
@@ -53,25 +51,6 @@ export const options = {
     ],
   },
 };
-
-function postQuery(queryName, query, variables = {}) {
-  const res = http.post(
-    httpConfig.host,
-    JSON.stringify({
-      query: query,
-      operationName: queryName,
-      variables: variables,
-    }),
-    {
-      headers: httpConfig.headers,
-    }
-  );
-  const checkRes = check(res, {
-    [`${queryName} status is 200`]: (r) => r.status === 200,
-  });
-  failureRate.add(!checkRes);
-  return res;
-}
 
 const getShoppingCart = () => {
   const product = `
@@ -297,20 +276,21 @@ const getShoppingCart = () => {
     }
   `;
 
-  const res = postQuery('getShoppingCart', query, {
-    isRemoveMarkUp: true,
-    isUseMember: true,
-  });
+  const res = postQuery(
+    'getShoppingCart',
+    query,
+    {
+      isRemoveMarkUp: true,
+      isUseMember: true,
+    },
+    { failureRate }
+  );
 
-  const body = JSON.parse(res.body);
-
-  if (body.data) {
+  if (res) {
     orderPromotionResult([
-      body.data.getShoppingCart.outrightPurchase.id,
-      body.data.getShoppingCart.shoppingTrolley.id,
+      res.getShoppingCart.outrightPurchase.id,
+      res.getShoppingCart.shoppingTrolley.id,
     ]);
-  } else {
-    console.log(body);
   }
 };
 
@@ -319,9 +299,14 @@ const orderPromotionResult = (orderIds) => {
     query orderPromotionResult($orderIds: [ID!]!) {\n  orderPromotionResult(orderIds: $orderIds) {\n    id\n    createdAt\n    updatedAt\n    promResult {\n      orderId\n      discountAmount\n      promLineResults {\n        promInstanceId\n        tags\n        orderLines {\n          orderLineId\n          discountCount\n          discountAmount\n          skuId\n          discount\n          displayInThisGroup\n        }\n        priority\n        type\n        shouldGroup\n        description\n        promTime\n        promContent\n        promOverview\n        discountType\n        discountAmount\n        discountCount\n        meetCondition\n        superimposeType\n        superimposeTypes\n        gifts {\n          promInstanceId\n          giftType\n          items {\n            giftId\n            productId\n            skuId\n            count\n            name\n            giftPrice\n            price\n            selected\n          }\n        }\n        coupons {\n          couponId\n          selected\n          price\n          autoSelected\n        }\n      }\n      orderLinePromResults {\n        orderLineId\n        skuId\n        count\n        price\n        discountAmount\n        discountDetails {\n          promInstanceId\n          type\n          superimposeType\n          superimposeTypes\n          discountCount\n          discountAmount\n        }\n      }\n      leftOrderLines {\n        skuId\n        lineId\n        count\n        price\n        discountAmount\n      }\n      discountByTypes {\n        type\n        discountAmount\n      }\n      gifts {\n        promInstanceId\n        giftType\n        items {\n          giftId\n          productId\n          skuId\n          count\n          name\n          giftPrice\n          price\n          selected\n        }\n      }\n      coupons {\n        couponId\n        selected\n        price\n      }\n      disableMember\n    }\n  }\n}
   `;
 
-  postQuery('orderPromotionResult', query, {
-    orderIds,
-  });
+  postQuery(
+    'orderPromotionResult',
+    query,
+    {
+      orderIds,
+    },
+    { failureRate }
+  );
 };
 
 const getUserMember = () => {
@@ -329,7 +314,7 @@ const getUserMember = () => {
     query getUserMember {\n  getUserMember {\n    ...Member\n  }\n}\n\nfragment Member on Member {\n  id\n  createdAt\n  updatedAt\n  code\n  claimAt\n  activationAt\n  maturityAt\n  maturityType\n  membershipPlan {\n    ...MembershipPlan\n  }\n  state\n}\n\nfragment MembershipPlan on MembershipPlan {\n  id\n  createdAt\n  updatedAt\n  name\n  bannerImg\n  backgroundImage\n  protocolUsage\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  price\n  introduce\n  customerServiceNumber\n  state\n  rightsDiscount {\n    enable\n    discountRate\n    restrictedUse\n  }\n  rightsPoints {\n    enable\n    pointsMultiple\n  }\n  rightsCoupon {\n    enable\n    presentedCoupon {\n      couponId\n      presentedCount\n    }\n  }\n  membershipPlanCoupon {\n    coupon {\n      ...Coupon\n    }\n    quantity\n  }\n}\n\nfragment Coupon on Coupon {\n  __typename\n  id\n  createdAt\n  state\n  enable\n  updatedAt\n  name\n  remarks\n  type\n  preferentialContent {\n    preferentialType\n    minimum\n    discount\n    maximumOffer\n    includingDiscountProducts\n  }\n  validityPeriod {\n    type\n    startTime\n    endTime\n    numberOfDays\n  }\n  totalQuantity\n  applicableProduct {\n    applicableType\n    productIds\n  }\n  claimRestriction\n  whetherRestrictUsers\n  memberPlanIds\n  introduce\n  promotion {\n    id\n  }\n  activityContent\n  activityTime\n}
   `;
 
-  postQuery('getUserMember', query, {});
+  postQuery('getUserMember', query, {}, { failureRate });
 };
 
 const seriesProducts = (collectionId) => {
@@ -341,23 +326,28 @@ const seriesProducts = (collectionId) => {
     collectionId = String(collections[getRandom(0, collections.length - 1)].id);
   }
 
-  postQuery('seriesProducts', query, {
-    collectionId,
-    options: {
-      filter: {
-        hidden: {
-          eq: false,
+  postQuery(
+    'seriesProducts',
+    query,
+    {
+      collectionId,
+      options: {
+        filter: {
+          hidden: {
+            eq: false,
+          },
+          freeGift: {
+            eq: false,
+          },
         },
-        freeGift: {
-          eq: false,
+        sort: {
+          id: 'ASC',
+          createdAt: 'DESC',
         },
-      },
-      sort: {
-        id: 'ASC',
-        createdAt: 'DESC',
       },
     },
-  });
+    { failureRate }
+  );
 };
 
 export default function () {
