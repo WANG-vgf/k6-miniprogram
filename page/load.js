@@ -165,14 +165,6 @@ const userClick = () => {
   postQuery('userClick', query, {}, { failureRate });
 };
 
-const x = () => {
-  const query = `
-
-  `;
-
-  postQuery('', query, {}, { failureRate });
-};
-
 export default function () {
   getMatomoSiteId();
   maxDiscountMembershipPlan();

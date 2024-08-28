@@ -48,4 +48,12 @@ export const options = {
   },
 };
 
+const = () => {
+  const query = `
+
+  `;
+
+  postQuery('', query, {}, { failureRate });
+};
+
 export default function () {}
